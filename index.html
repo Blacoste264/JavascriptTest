@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="X-UA-Compatible" content="ie=edge">
+    <title>Document</title>
+</head>
+
+<body>
+    <!-- Divs to display our results -->
+    <h2> Let's create a deep clone! </h2>
+    <div id="originalObj"></div>
+    <div id="paddyClone"></div>
+    <h2> The lucky ones recieving an invitation! </h2>
+    <div id="recipients"></div>
+    </div>
+
+    <script type="text/javascript">
+        // First...
+        // If we are making a simple clone of a purely JSON object this is the
+        // most efficient/simple solution.
+        // However, all of its nested properties must be scalars (boolean, string, array, object, etc)
+
+        // Our example object to clone
+        var obj = {
+            name: "Paddy",
+            batman: "Possibly?...",
+            address: {
+                town: "Lerum",
+                country: "Sweden"
+            }
+        }
+        // Cloning method
+        var clone = JSON.parse(JSON.stringify(obj));
+
+        // Display original object
+        document.querySelector('#paddyClone').innerHTML = `Paddy clone: ${JSON.stringify(clone)}`;
+        // Display new clone
+        document.querySelector('#originalObj').innerHTML = `Original object: ${JSON.stringify(obj)}`;
+
+
+        // Next...
+        // 1. Retrieve organizations withing 100km of given coordinates. 
+        // 2. Display only the address, distance, and organization.
+        // 3. Ascending sort by Organization.
+        // 4. Display data on DOM 
+
+        var companiesList = []; // Global variable to store our companiesList
+
+        var endpoint = 'data.json'; //
+        fetch(endpoint) // Fetch the data.json file with our organizations array, with error handling. 
+            .then(blob => blob.json()) // Ensures data recieved is JSON
+            .catch(er => console.log("There was an error fetching your JSON file")) // Friendly error message if data wasn't fetched
+            // Create a new array from our original data array 
+            .then(data => data.map((el) => {
+                var organization = el.organization;
+                // Nested .map to iterate through all office locations
+                var mappedArray = el.offices.map((x) => {
+                    var coordinates = x.coordinates.split(','); // Split the coordinates into two seperate values (latitude, longitude)
+                    var address = x.address; // Retrieve all addresses for different office locations
+
+                    return { // Return coordinates & address for each location
+                        coordinates: coordinates,
+                        address: address
+                    }
+                })
+                // Iterate through new array containing specific information only (mappedArray)
+                var details = mappedArray.map((g) => {
+                    // For each object in mappedArray, pull address & coordinates then begin distance algorithm
+                    var address = g.address;
+                    var coordinates = g.coordinates;
+                    //  parseFloat converts our lat and long strings into decimals
+                    var companyLat = parseFloat(coordinates[0]);
+                    var companyLong = parseFloat(coordinates[1]);
+                    // These are our given lat and long coordinates
+                    var givenLat = 51.515419;
+                    var givenLong = -0.141099;
+
+                    // Math using the "As the Crow Flies" formula (straight, shortest distance from point A to B)
+                    var R = 6371; // km
+                    // As per the forumla, we need to transform point a lat/long - point b lat/long from degrees to radians
+                    var dLat = toRad(givenLat - companyLat);  
+                    var dLon = toRad(givenLong - companyLong);
+                    // Every decimal must be in radians
+                    var companyLat = toRad(companyLat);
+                    var givenLat = toRad(givenLat);
+
+                    // Math.sin gives us the sine of the number (in our case the radian conversion of our point a - point b latitude/longitude)
+                    // Math.cos gives us the cosine of our point a lat and point b lat
+                    // We then multiply our sines of our lats/longs, then add our sines and mulpily by our cosines
+                    var a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+                        Math.sin(dLon / 2) * Math.sin(dLon / 2) * Math.cos(companyLat) * Math.cos(
+                            givenLat);
+                    // The Math.atan2() method returns a numeric value between -π and π representing the angle theta of an (x, y) point
+                    // Our x,y points were the square roots of (Math.sqrt()) a and 1 - a
+                    // We then double
+                    var c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+                    // Finally we arrive at the distance (d) where we take our km units and multiply them by c
+                    var d = R * c;
+
+                    // Return our new distance of each location's coordinates, the address, and organization name
+                    return {
+                        distance: d,
+                        address: address,
+                        organization: organization
+                    }
+
+                })
+                // We are creating a new filtered array called companiesList (the global variable we stored earlier)
+                // Companies must be withing 100km of our point a to make it into the new array
+                details.filter((i) => i.distance <= 100 ? companiesList.push(i) : false)
+                // Sort the new array in ascending order
+                companiesList.sort(
+                    function (a, b) {
+                        if (a.organization < b.organization) return -1;
+                        if (a.organization > b.organization) return 1;
+                        return 0;
+                    })
+                // Pass the new sorted array to the next function so we can display our results
+                displayMatches(companiesList);
+            }))
+
+        // Converts numeric degrees to radians
+        function toRad(Value) {
+            return Value * Math.PI / 180;
+        }
+
+        function displayMatches(array) {
+            var recipients = document.querySelector("#recipients"); // Target our div to display results
+            var html = array.map(place => { // Map new array of li items containing our specfic information
+                return `
+                    <ul>
+                        <li> <b>Organization: </b> ${place.organization} </li>
+                        <li> <b>Distance: </b> ${place.distance}, </li>
+                        <li> <b>Address: </b> ${place.address}, </li>
+                    </ul>
+                    `;
+            }).join(""); // Removes the comma that separates the objects
+            recipients.innerHTML = html; // Place new array into our recipients div
+        }
+
+        console.assert(companiesList.constructor === Array, "Final array of objects is not an array");
+        console.assert(toRad(51.515419) === 0.8991136770944448, "Unable to convert numeric degrees to radians")
+        console.assert(parseFloat("51.515419") === 51.515419, "parseFloat not successful")
+        
+    </script>
+
+
+</body>
+
+</html>
